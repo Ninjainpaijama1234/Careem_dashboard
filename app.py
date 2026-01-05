@@ -71,7 +71,7 @@ st.markdown("""
 def generate_dummy_data():
     """Generates a rich, realistic dataset for demonstration."""
     np.random.seed(42)
-    n_users = 2000  # Increased sample size
+    n_users = 3000  # Increased sample size
     
     dates = pd.date_range(end=dt.datetime.today(), periods=730)
     signup_dates = np.random.choice(dates, n_users)
@@ -267,26 +267,64 @@ if df_raw is not None:
             fig_sun.update_layout(height=350, margin=dict(l=0, r=0, t=0, b=0))
             st.plotly_chart(fig_sun, use_container_width=True)
 
-        # Row 3: Cohort/Heatmap Analysis style
-        st.subheader("🔥 RFM Correlation Heatmap")
-        st.caption("How do Frequency and Monetary Value correlate? (Color = Recency Rank)")
+        st.markdown("---")
         
-        fig_bubble = px.scatter(df, x='total_orders', y='total_spend', 
-                                color='R_Rank', size='total_spend',
-                                hover_data=['user_id', 'Segment'],
-                                color_continuous_scale='Viridis')
-        fig_bubble.update_layout(height=400)
-        st.plotly_chart(fig_bubble, use_container_width=True)
+        # Row 3: Advanced Charts
+        c3, c4 = st.columns(2)
+        with c3:
+            st.subheader("🔥 RFM Correlation Heatmap")
+            st.caption("Recency vs Monetary (Size = Frequency)")
+            fig_bubble = px.scatter(df, x='days_since_last_order', y='total_spend', 
+                                    color='Segment', size='total_orders',
+                                    hover_data=['user_id'],
+                                    log_y=True, # Log scale for better visibility of spread
+                                    color_continuous_scale='Viridis',
+                                    title="Recency vs Spend (Log Scale)")
+            fig_bubble.update_layout(height=400)
+            st.plotly_chart(fig_bubble, use_container_width=True)
+            
+        with c4:
+             st.subheader("💰 Spend Distribution")
+             st.caption("How much do most users spend?")
+             fig_hist = px.histogram(df, x="total_spend", nbins=50, 
+                                     color="Segment",
+                                     title="Wallet Share Distribution",
+                                     color_discrete_sequence=px.colors.qualitative.Pastel)
+             fig_hist.update_layout(height=400)
+             st.plotly_chart(fig_hist, use_container_width=True)
 
     # --- TAB 2: SEGMENTATION ---
     with tabs[1]:
         st.subheader("🧩 Strategic Segmentation Architecture")
         
+        # 1. EXPORT SECTION (NEW)
+        with st.expander("📥 **Bulk Segment Export (Download Center)**", expanded=True):
+            st.info("Select a segment below to download the specific customer list for your marketing campaigns.")
+            
+            # Create a grid layout for buttons
+            segments = sorted(df['Segment'].unique())
+            cols = st.columns(4) # 4 buttons per row
+            
+            for i, seg in enumerate(segments):
+                seg_df = df[df['Segment'] == seg]
+                csv = seg_df.to_csv(index=False).encode('utf-8')
+                
+                # Place button in the correct column
+                with cols[i % 4]:
+                    st.download_button(
+                        label=f"📥 {seg} ({len(seg_df)})",
+                        data=csv,
+                        file_name=f"segment_{seg.lower().replace(' ', '_')}.csv",
+                        mime='text/csv',
+                        use_container_width=True
+                    )
+
+        st.markdown("---")
+        
         c_seg1, c_seg2 = st.columns([2, 1])
         
         with c_seg1:
             st.markdown("**Segment Distribution (Treemap)**")
-            # Treemap is excellent for hierarchical data or categorical size comparison
             seg_tree_data = df.groupby('Segment').agg({'user_id':'count', 'total_spend':'sum'}).reset_index()
             fig_tree = px.treemap(seg_tree_data, path=['Segment'], values='total_spend',
                                   color='user_id', color_continuous_scale='Blues',
@@ -302,9 +340,22 @@ if df_raw is not None:
             )
 
         st.markdown("---")
-        st.subheader("🔄 Customer Journey Flow (Parallel Categories)")
-        st.caption("Trace the path: Platform -> Age Group -> Segment")
+        st.subheader("📊 Attribute Analysis per Segment")
         
+        # Box Plots for deeper distribution analysis
+        box_col1, box_col2 = st.columns(2)
+        with box_col1:
+            fig_box_r = px.box(df, x="Segment", y="days_since_last_order", color="Segment", 
+                               title="Recency Distribution by Segment")
+            st.plotly_chart(fig_box_r, use_container_width=True)
+            
+        with box_col2:
+            fig_box_m = px.box(df, x="Segment", y="total_spend", color="Segment", 
+                               title="Monetary Distribution by Segment", log_y=True)
+            st.plotly_chart(fig_box_m, use_container_width=True)
+
+        st.markdown("---")
+        st.subheader("🔄 Customer Journey Flow (Parallel Categories)")
         fig_parcat = px.parallel_categories(df, dimensions=['platform', 'age_group', 'Segment'],
                                             color='total_spend', color_continuous_scale=px.colors.sequential.Inferno)
         fig_parcat.update_layout(height=500)
@@ -312,7 +363,7 @@ if df_raw is not None:
         
         # Interactive ROI Simulator
         st.markdown("---")
-        with st.expander("💰 Marketing Campaign ROI Simulator", expanded=True):
+        with st.expander("💰 Marketing Campaign ROI Simulator", expanded=False):
             sim_c1, sim_c2, sim_c3 = st.columns(3)
             with sim_c1:
                 target_seg = st.selectbox("Target Segment", df['Segment'].unique())
@@ -409,23 +460,59 @@ if df_raw is not None:
                              title="Feature Importance (Churn Model)")
             st.plotly_chart(fig_imp, use_container_width=True)
             
+            # High Risk / High Value Visual
+            st.markdown("### 🚦 Risk vs Reward Matrix")
+            st.caption("Identify High-Value customers who are at High-Risk of churning (Top Right quadrant).")
+            
+            fig_risk = px.scatter(df, x='Prob_Churn', y='Pred_Spend_Next_Mo',
+                                  color='Segment', size='total_spend',
+                                  title="Predicted Churn Probability vs Predicted Future Spend",
+                                  labels={'Prob_Churn': 'Probability of Churn (0-1)', 'Pred_Spend_Next_Mo': 'Predicted Next Month Spend'},
+                                  hover_data=['user_id'])
+            # Add threshold lines
+            fig_risk.add_hline(y=df['Pred_Spend_Next_Mo'].mean(), line_dash="dash", line_color="grey", annotation_text="Avg Spend")
+            fig_risk.add_vline(x=0.5, line_dash="dash", line_color="red", annotation_text="High Risk")
+            st.plotly_chart(fig_risk, use_container_width=True)
+            
             # Predictions Table
             c_pred1, c_pred2 = st.columns(2)
             
             with c_pred1:
                 st.markdown("#### 🚨 High Flight Risk (>80%)")
                 risk_df = df[df['Prob_Churn'] > 0.8].sort_values('total_spend', ascending=False).head(10)
-                st.dataframe(risk_df[['user_id', 'Segment', 'Prob_Churn', 'total_spend']].style.background_gradient(subset=['Prob_Churn'], cmap='Reds'))
+                
+                # Use st.column_config for styling without matplotlib
+                st.dataframe(
+                    risk_df[['user_id', 'Segment', 'Prob_Churn', 'total_spend']],
+                    column_config={
+                        "Prob_Churn": st.column_config.ProgressColumn(
+                            "Churn Probability",
+                            format="%.2f",
+                            min_value=0,
+                            max_value=1,
+                        ),
+                        "total_spend": st.column_config.NumberColumn(
+                            "Total Spend",
+                            format="$%.2f"
+                        )
+                    },
+                    use_container_width=True
+                )
                 
             with c_pred2:
                 st.markdown("#### 💎 Predicted Top Spenders (Next Month)")
                 spend_df = df.sort_values('Pred_Spend_Next_Mo', ascending=False).head(10)
-                st.dataframe(spend_df[['user_id', 'Segment', 'Pred_Spend_Next_Mo']].style.format({'Pred_Spend_Next_Mo': '${:,.2f}'}))
                 
-            # Distribution of Churn Probability
-            fig_dist = px.histogram(df, x='Prob_Churn', nbins=50, title="Distribution of Churn Probability Across Base",
-                                    color_discrete_sequence=['#e74c3c'])
-            st.plotly_chart(fig_dist, use_container_width=True)
+                st.dataframe(
+                    spend_df[['user_id', 'Segment', 'Pred_Spend_Next_Mo']],
+                    column_config={
+                        "Pred_Spend_Next_Mo": st.column_config.NumberColumn(
+                            "Predicted Spend",
+                            format="$%.2f"
+                        )
+                    },
+                    use_container_width=True
+                )
             
         else:
             st.info("Click the button above to initialize the Machine Learning pipeline.")
