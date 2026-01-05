@@ -6,394 +6,433 @@ import plotly.graph_objects as go
 import numpy as np
 import datetime as dt
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.neighbors import NearestNeighbors
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, mean_absolute_error
+from sklearn.metrics import accuracy_score, classification_report
+from sklearn.preprocessing import StandardScaler
 
 # 1. Page Configuration
 # ---------------------
 st.set_page_config(
-    page_title="Advanced RFM Intelligence Hub",
-    page_icon="🚀",
+    page_title="InsightX: Ultimate RFM Intelligence",
+    page_icon="🌌",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for nicer UI
+# Custom CSS for Premium UI
 st.markdown("""
 <style>
-    .metric-card {
-        background-color: #f0f2f6;
-        border-radius: 10px;
-        padding: 20px;
-        box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
+    /* Global Styles */
+    .main {
+        background-color: #f8f9fa;
     }
+    h1, h2, h3 {
+        font-family: 'Helvetica Neue', sans-serif;
+        color: #2c3e50;
+    }
+    /* Metric Cards */
+    div[data-testid="stMetric"] {
+        background-color: #ffffff;
+        border: 1px solid #e0e0e0;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    /* Tabs */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 2px;
+        gap: 8px;
     }
     .stTabs [data-baseweb="tab"] {
-        height: 50px;
+        height: 55px;
         white-space: pre-wrap;
-        background-color: #f0f2f6;
-        border-radius: 4px 4px 0px 0px;
-        gap: 1px;
-        padding-top: 10px;
-        padding-bottom: 10px;
+        background-color: #ffffff;
+        border-radius: 8px;
+        color: #555;
+        font-weight: 600;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
     .stTabs [aria-selected="true"] {
-        background-color: #ffffff;
-        border-bottom: 2px solid #4CAF50;
+        background-color: #2c3e50;
+        color: white;
+    }
+    /* Expander */
+    .streamlit-expanderHeader {
+        background-color: #f0f2f6;
+        border-radius: 5px;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# 2. Helper Functions
-# -------------------
+# 2. Data & Helper Functions
+# --------------------------
 
 @st.cache_data
 def generate_dummy_data():
-    """Generates realistic dummy data if no file is uploaded."""
+    """Generates a rich, realistic dataset for demonstration."""
     np.random.seed(42)
-    n_users = 1000
+    n_users = 2000  # Increased sample size
     
-    dates = pd.date_range(end=dt.datetime.today(), periods=365)
+    dates = pd.date_range(end=dt.datetime.today(), periods=730)
     signup_dates = np.random.choice(dates, n_users)
     
     data = []
     for i in range(n_users):
-        user_id = f"CUST_{1000+i}"
+        user_id = f"CUST_{10000+i}"
         signup_date = signup_dates[i]
         
-        # Simulate Recency (days since last order)
-        days_since = np.random.randint(1, 300)
+        # Simulate specialized behavior patterns
+        persona = np.random.choice(['Whale', 'Regular', 'Newbie', 'Lapsed'], p=[0.05, 0.4, 0.3, 0.25])
+        
+        if persona == 'Whale':
+            orders = np.random.randint(20, 100)
+            spend = orders * np.random.uniform(50, 200)
+            days_since = np.random.randint(1, 20)
+        elif persona == 'Regular':
+            orders = np.random.randint(5, 30)
+            spend = orders * np.random.uniform(20, 80)
+            days_since = np.random.randint(5, 60)
+        elif persona == 'Newbie':
+            orders = np.random.randint(1, 5)
+            spend = orders * np.random.uniform(15, 60)
+            days_since = np.random.randint(1, 30)
+        else: # Lapsed
+            orders = np.random.randint(1, 15)
+            spend = orders * np.random.uniform(10, 50)
+            days_since = np.random.randint(90, 365)
+            
         last_order = dt.datetime.today() - dt.timedelta(days=days_since)
         
-        # Simulate Frequency & Monetary based on some correlation
-        orders = np.random.randint(1, 50)
-        # Higher orders usually means slightly higher spend, but varied
-        spend = orders * np.random.uniform(10, 100) 
+        # Dimensions
+        cuisine = np.random.choice(['Italian', 'Asian', 'Fast Food', 'Healthy', 'Mexican', 'Vegan'], 
+                                 p=[0.25, 0.2, 0.2, 0.15, 0.15, 0.05])
+        platform = np.random.choice(['iOS App', 'Android App', 'Website', 'Call Center'], 
+                                  p=[0.5, 0.3, 0.15, 0.05])
+        age_group = np.random.choice(['18-24', '25-34', '35-44', '45+'], p=[0.2, 0.4, 0.3, 0.1])
         
-        # Additional metadata
-        cuisine = np.random.choice(['Italian', 'Asian', 'Burgers', 'Healthy', 'Indian'], p=[0.3, 0.2, 0.2, 0.2, 0.1])
-        platform = np.random.choice(['iOS', 'Android', 'Web'], p=[0.6, 0.3, 0.1])
+        data.append([user_id, signup_date, last_order, days_since, orders, spend, cuisine, platform, age_group])
         
-        data.append([user_id, signup_date, last_order, days_since, orders, spend, cuisine, platform])
-        
-    df = pd.DataFrame(data, columns=['user_id', 'signup_date', 'last_order_date', 'days_since_last_order', 'total_orders', 'total_spend', 'favorite_cuisine', 'last_platform_used'])
+    df = pd.DataFrame(data, columns=[
+        'user_id', 'signup_date', 'last_order_date', 'days_since_last_order', 
+        'total_orders', 'total_spend', 'favorite_cuisine', 'platform', 'age_group'
+    ])
     
-    # Calculate a mock 'Customer Lifetime Value' for display
-    df['customer_lifetime_value'] = df['total_spend'] * 1.2 # Simplified logic
+    # Customer Lifetime Value (Proxy)
+    df['clv'] = df['total_spend'] * np.random.uniform(1.0, 1.5, n_users)
     return df
 
 @st.cache_data
 def load_data(uploaded_file):
-    """Loads data from CSV or generates dummy data."""
-    if uploaded_file is not None:
+    if uploaded_file:
         try:
-            df = pd.read_csv(uploaded_file)
-        except Exception as e:
-            st.error(f"Error reading file: {e}")
+            return pd.read_csv(uploaded_file)
+        except:
             return None
-    else:
-        df = generate_dummy_data()
+    return generate_dummy_data()
 
-    # Standardization: Ensure columns exist or rename similar ones
-    # (In a real app, you'd add column mapping logic here)
-    
-    # Date Conversion
-    for col in ['signup_date', 'last_order_date']:
-        if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors='coerce')
-            
-    return df
-
-def calculate_rfm(df, r_weight, f_weight, m_weight):
-    """Calculates RFM scores, Weighted Scores, and Segments."""
-    
-    # 1. Calculate Quintiles (1-5)
-    # Recency: Lower days = Higher Score (5)
-    df['R_Rank'] = pd.qcut(df['days_since_last_order'], 5, labels=[5, 4, 3, 2, 1], duplicates='drop').astype(int)
-    # Frequency: Higher count = Higher Score (5)
+def calculate_rfm(df, r_w, f_w, m_w):
+    # Quantiles
+    df['R_Rank'] = pd.qcut(df['days_since_last_order'], 5, labels=[5, 4, 3, 2, 1]).astype(int)
     df['F_Rank'] = pd.qcut(df['total_orders'].rank(method='first'), 5, labels=[1, 2, 3, 4, 5]).astype(int)
-    # Monetary: Higher spend = Higher Score (5)
     df['M_Rank'] = pd.qcut(df['total_spend'].rank(method='first'), 5, labels=[1, 2, 3, 4, 5]).astype(int)
-
-    # 2. Weighted Score
-    df['RFM_Weighted_Score'] = (r_weight * df['R_Rank'] + f_weight * df['F_Rank'] + m_weight * df['M_Rank'])
-
-    # 3. Text Segment Definition (More granular rule-based mapping)
-    def define_segment(row):
-        r, f, m = row['R_Rank'], row['F_Rank'], row['M_Rank']
-        avg = (r + f + m) / 3
-        
-        if r >= 5 and f >= 5 and m >= 5:
-            return 'Champions'
-        elif r >= 3 and f >= 3 and m >= 3:
-            return 'Loyal Customers'
-        elif r >= 4 and f <= 2:
-            return 'New Customers'
-        elif r <= 2 and f >= 4:
-            return 'At-Risk'
-        elif r <= 2 and f <= 2:
-            return 'Lost'
-        elif row['RFM_Weighted_Score'] >= 4:
-            return 'Potential Loyalists'
-        elif 2 <= row['RFM_Weighted_Score'] < 4:
-            return 'Needs Attention'
-        else:
-            return 'Hibernating'
-
-    df['Segment'] = df.apply(define_segment, axis=1)
     
+    # Weighted Score
+    df['RFM_Score'] = (r_w * df['R_Rank'] + f_w * df['F_Rank'] + m_w * df['M_Rank'])
+    
+    # Advanced Segmentation Logic
+    def segment_customer(row):
+        score = row['RFM_Score']
+        r, f = row['R_Rank'], row['F_Rank']
+        
+        if r == 5 and f == 5: return 'Champions'
+        if r >= 3 and f >= 4: return 'Loyal Customers'
+        if r >= 4 and f <= 2: return 'Promising New'
+        if r >= 3 and f <= 3: return 'Potential Loyalists'
+        if r <= 2 and f >= 4: return 'At Risk'
+        if r <= 2 and f <= 2: return 'Lost'
+        if score > 3.5: return 'Need Attention'
+        return 'Hibernating'
+
+    df['Segment'] = df.apply(segment_customer, axis=1)
     return df
 
 @st.cache_resource
-def train_prediction_models(df):
-    """Trains simple ML models for the Prediction tab."""
-    # Prepare Features
+def train_models(df):
+    """Trains predictive models and returns feature importance."""
     X = df[['R_Rank', 'F_Rank', 'M_Rank', 'days_since_last_order', 'total_orders', 'total_spend']]
     
-    # 1. Churn Prediction (Classification)
-    # Proxy target: If Recency Rank is 1 (Lowest), consider them 'Churned' for training purposes
-    y_churn = (df['R_Rank'] == 1).astype(int)
+    # 1. Churn Prediction
+    y_churn = (df['R_Rank'] <= 2).astype(int)
     X_train, X_test, y_train, y_test = train_test_split(X, y_churn, test_size=0.2, random_state=42)
-    clf = RandomForestClassifier(n_estimators=50, max_depth=5)
+    
+    clf = RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42)
     clf.fit(X_train, y_train)
-    churn_acc = accuracy_score(y_test, clf.predict(X_test))
-
-    # 2. Next Month Spend Prediction (Regression)
-    # Proxy target: Total Spend * random noise to simulate future variation
-    # In real life, you would use historical 'next month' data.
-    y_spend = df['total_spend'] * np.random.uniform(0.8, 1.2, len(df))
-    X_train_r, X_test_r, y_train_r, y_test_r = train_test_split(X, y_spend, test_size=0.2, random_state=42)
-    reg = RandomForestRegressor(n_estimators=50, max_depth=5)
-    reg.fit(X_train_r, y_train_r)
+    acc = accuracy_score(y_test, clf.predict(X_test))
     
-    return clf, reg, churn_acc
-
-# 3. Sidebar Configuration
-# ------------------------
-with st.sidebar:
-    st.image("https://placehold.co/300x100/000000/FFFFFF?text=Insight+Engine", use_container_width=True)
-    st.header("📂 Data Import")
-    uploaded_file = st.file_uploader("Upload CSV (or use auto-generated data)", type=["csv"])
+    # 2. Spend Prediction
+    y_spend = df['total_spend'] * np.random.uniform(0.9, 1.3, len(df))
+    reg = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42)
+    reg.fit(X, y_spend)
     
-    if uploaded_file is None:
-        st.info("ℹ️ Using auto-generated demo data.")
+    return clf, reg, acc, X.columns
+
+@st.cache_resource
+def find_similar_customers(df, current_user_id, n_neighbors=5):
+    """Finds similar customers using NearestNeighbors."""
+    features = ['days_since_last_order', 'total_orders', 'total_spend', 'R_Rank', 'F_Rank', 'M_Rank']
     
-    st.markdown("---")
-    st.header("⚙️ RFM Weights")
-    st.caption("Adjust importance for segmentation logic.")
-    r_weight = st.slider("Recency (R)", 0.0, 2.0, 1.0, 0.1)
-    f_weight = st.slider("Frequency (F)", 0.0, 2.0, 1.0, 0.1)
-    m_weight = st.slider("Monetary (M)", 0.0, 2.0, 1.0, 0.1)
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(df[features])
     
-    st.markdown("---")
-    st.markdown("Built with ❤️ using Streamlit")
-
-# 4. Main Application
-# -------------------
-st.title("🧠 Advanced Customer Intelligence Hub")
-
-# Load & Process
-df_raw = load_data(uploaded_file)
-
-if df_raw is not None:
-    df_rfm = calculate_rfm(df_raw.copy(), r_weight, f_weight, m_weight)
+    nbrs = NearestNeighbors(n_neighbors=n_neighbors+1, algorithm='ball_tree').fit(X_scaled)
     
-    # Create Tabs
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "📊 Dashboard Overview", 
-        "🧩 Segmentation & Actions", 
-        "👤 Customer Deep Dive",
-        "🔮 Predictive Analytics"
-    ])
-
-    # --- TAB 1: OVERVIEW ---
-    with tab1:
-        st.subheader("Business Pulse")
+    # Find index of current user
+    try:
+        user_idx = df[df['user_id'] == current_user_id].index[0]
+        distances, indices = nbrs.kneighbors([X_scaled[user_idx]])
         
-        # Top Metrics
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Active Customers", f"{df_rfm['user_id'].nunique():,}", delta="+5% vs last mo")
-        m2.metric("Total Revenue", f"${df_rfm['total_spend'].sum():,.0f}")
-        m3.metric("Avg Order Value", f"${df_rfm['total_spend'].mean():.2f}")
-        m4.metric("Avg Frequency", f"{df_rfm['total_orders'].mean():.1f} orders")
+        # Exclude self
+        similar_indices = indices[0][1:]
+        return df.iloc[similar_indices]
+    except:
+        return pd.DataFrame()
 
-        st.markdown("### 📈 Revenue & Activity Trends")
-        c1, c2 = st.columns(2)
+# 3. Sidebar
+# ----------
+with st.sidebar:
+    st.image("https://placehold.co/300x120/2c3e50/FFFFFF?text=InsightX+AI", use_container_width=True)
+    st.markdown("### 🎛️ Control Panel")
+    
+    uploaded_file = st.file_uploader("Data Source", type=["csv"])
+    if not uploaded_file:
+        st.caption("🚀 Running on Synthetic Engine")
+
+    st.divider()
+    
+    st.markdown("### ⚖️ RFM Weights")
+    r_w = st.slider("Recency Impact", 0.0, 2.0, 1.2, help="Higher weight prioritizes recent activity")
+    f_w = st.slider("Frequency Impact", 0.0, 2.0, 0.8)
+    m_w = st.slider("Monetary Impact", 0.0, 2.0, 1.0)
+    
+    st.divider()
+    st.info("💡 **Pro Tip:** Check the 'Predictive Analytics' tab to forecast next month's revenue.")
+
+# 4. Main App Logic
+# -----------------
+df_raw = load_data(uploaded_file)
+if df_raw is not None:
+    df = calculate_rfm(df_raw.copy(), r_w, f_w, m_w)
+    
+    st.title("InsightX: Customer Intelligence Platform")
+    
+    tabs = st.tabs([
+        "📊 Executive Overview", 
+        "🧩 Advanced Segmentation", 
+        "👤 360° Customer View", 
+        "🔮 AI & Future Analytics"
+    ])
+    
+    # --- TAB 1: EXECUTIVE OVERVIEW ---
+    with tabs[0]:
+        # Top Level KPIs
+        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+        total_rev = df['total_spend'].sum()
+        kpi1.metric("Total Revenue", f"${total_rev:,.0f}", "+12.5%")
+        kpi2.metric("Active Users", f"{df['user_id'].nunique():,}", "+34")
+        kpi3.metric("Avg Order Value", f"${df['total_spend'].mean():.2f}", "-2.1%")
+        kpi4.metric("Churn Rate (Est)", f"{(len(df[df['Segment']=='Lost'])/len(df))*100:.1f}%", "-0.5%")
+        
+        st.markdown("---")
+        
+        # Row 2: Visualizations
+        c1, c2 = st.columns([1.5, 1])
         
         with c1:
-            st.markdown("**Income Distribution**")
-            # Histogram of spend
-            fig_hist = px.histogram(df_rfm, x="total_spend", nbins=30, 
-                                    color_discrete_sequence=['#4CAF50'],
-                                    title="Distribution of Customer Spend")
-            st.plotly_chart(fig_hist, use_container_width=True)
+            st.subheader("📈 User Growth Trajectory")
+            # Aggregate signups by month
+            df_growth = df.set_index('signup_date').resample('M')['user_id'].count().reset_index()
+            df_growth['cumulative'] = df_growth['user_id'].cumsum()
+            
+            fig_area = px.area(df_growth, x='signup_date', y='cumulative', 
+                               labels={'cumulative': 'Total Users', 'signup_date': 'Date'},
+                               color_discrete_sequence=['#2ecc71'])
+            fig_area.update_layout(hovermode="x unified", height=350, margin=dict(l=0, r=0, t=0, b=0))
+            st.plotly_chart(fig_area, use_container_width=True)
             
         with c2:
-            st.markdown("**Recency Heatmap**")
-            # Altair heatmap of Recency vs Frequency
-            heatmap = alt.Chart(df_rfm).mark_rect().encode(
-                x=alt.X('R_Rank:O', title='Recency Score (1-5)'),
-                y=alt.Y('F_Rank:O', title='Frequency Score (1-5)'),
-                color=alt.Color('mean(total_spend):Q', scale=alt.Scale(scheme='greens'), title='Avg Spend'),
-                tooltip=['count()', 'mean(total_spend)']
-            ).properties(title="Where is the money coming from? (R vs F)").interactive()
-            st.altair_chart(heatmap, use_container_width=True)
+            st.subheader("🍕 Market Composition")
+            # Sunburst Chart: Platform -> Cuisine
+            fig_sun = px.sunburst(df, path=['platform', 'favorite_cuisine'], values='total_spend',
+                                  color='total_spend', color_continuous_scale='RdBu')
+            fig_sun.update_layout(height=350, margin=dict(l=0, r=0, t=0, b=0))
+            st.plotly_chart(fig_sun, use_container_width=True)
+
+        # Row 3: Cohort/Heatmap Analysis style
+        st.subheader("🔥 RFM Correlation Heatmap")
+        st.caption("How do Frequency and Monetary Value correlate? (Color = Recency Rank)")
+        
+        fig_bubble = px.scatter(df, x='total_orders', y='total_spend', 
+                                color='R_Rank', size='total_spend',
+                                hover_data=['user_id', 'Segment'],
+                                color_continuous_scale='Viridis')
+        fig_bubble.update_layout(height=400)
+        st.plotly_chart(fig_bubble, use_container_width=True)
 
     # --- TAB 2: SEGMENTATION ---
-    with tab2:
-        st.subheader("Segment Analysis & Extraction")
+    with tabs[1]:
+        st.subheader("🧩 Strategic Segmentation Architecture")
         
-        # 3D Scatter Plot for RFM
-        st.markdown("**3D Visualization of RFM Clusters**")
-        fig_3d = px.scatter_3d(
-            df_rfm, x='days_since_last_order', y='total_orders', z='total_spend',
-            color='Segment', opacity=0.7,
-            hover_data=['user_id'],
-            title="Recency vs Frequency vs Monetary (3D View)"
-        )
-        fig_3d.update_layout(margin=dict(l=0, r=0, b=0, t=30), height=500)
-        st.plotly_chart(fig_3d, use_container_width=True)
-
-        # Segment Breakdown
-        col_seg1, col_seg2 = st.columns([2, 1])
+        c_seg1, c_seg2 = st.columns([2, 1])
         
-        with col_seg1:
-            st.markdown("**Segment Size & Monetary Value**")
-            segment_stats = df_rfm.groupby('Segment').agg({
-                'user_id': 'count',
-                'total_spend': 'sum'
-            }).reset_index()
+        with c_seg1:
+            st.markdown("**Segment Distribution (Treemap)**")
+            # Treemap is excellent for hierarchical data or categorical size comparison
+            seg_tree_data = df.groupby('Segment').agg({'user_id':'count', 'total_spend':'sum'}).reset_index()
+            fig_tree = px.treemap(seg_tree_data, path=['Segment'], values='total_spend',
+                                  color='user_id', color_continuous_scale='Blues',
+                                  hover_data=['user_id'],
+                                  title="Size by Revenue (Color = User Count)")
+            st.plotly_chart(fig_tree, use_container_width=True)
             
-            # Dual Axis Chart
-            base = alt.Chart(segment_stats).encode(x='Segment')
-            bar = base.mark_bar(color='#a1d99b').encode(y='total_spend', tooltip=['Segment', 'total_spend'])
-            line = base.mark_line(color='#31a354').encode(y='user_id')
-            
-            st.altair_chart((bar + line).interactive(), use_container_width=True)
-            st.caption("Bars = Total Spend | Line = Number of Customers")
+        with c_seg2:
+            st.markdown("**Segment Performance**")
+            st.dataframe(
+                df.groupby('Segment')[['total_spend', 'total_orders']].mean().sort_values('total_spend', ascending=False).style.format("${:,.2f}"),
+                height=350
+            )
 
-        with col_seg2:
-            st.markdown("**Download Segments**")
-            st.write("Export specific lists for email marketing.")
-            
-            for seg in df_rfm['Segment'].unique():
-                seg_df = df_rfm[df_rfm['Segment'] == seg]
-                csv = seg_df.to_csv(index=False).encode('utf-8')
+        st.markdown("---")
+        st.subheader("🔄 Customer Journey Flow (Parallel Categories)")
+        st.caption("Trace the path: Platform -> Age Group -> Segment")
+        
+        fig_parcat = px.parallel_categories(df, dimensions=['platform', 'age_group', 'Segment'],
+                                            color='total_spend', color_continuous_scale=px.colors.sequential.Inferno)
+        fig_parcat.update_layout(height=500)
+        st.plotly_chart(fig_parcat, use_container_width=True)
+        
+        # Interactive ROI Simulator
+        st.markdown("---")
+        with st.expander("💰 Marketing Campaign ROI Simulator", expanded=True):
+            sim_c1, sim_c2, sim_c3 = st.columns(3)
+            with sim_c1:
+                target_seg = st.selectbox("Target Segment", df['Segment'].unique())
+            with sim_c2:
+                budget = st.number_input("Campaign Budget ($)", 1000, 50000, 5000)
+            with sim_c3:
+                conv_rate = st.slider("Est. Conversion Rate (%)", 1, 20, 5) / 100
                 
-                st.download_button(
-                    label=f"📥 {seg} ({len(seg_df)})",
-                    data=csv,
-                    file_name=f"segment_{seg.lower().replace(' ', '_')}.csv",
-                    mime='text/csv',
-                    key=f"dl_{seg}"
-                )
+            target_users = df[df['Segment'] == target_seg]
+            avg_ticket = target_users['total_spend'].mean() / target_users['total_orders'].mean() if target_users['total_orders'].mean() > 0 else 0
+            
+            est_revenue = len(target_users) * conv_rate * avg_ticket
+            roi = (est_revenue - budget) / budget * 100
+            
+            st.metric("Estimated ROI", f"{roi:.1f}%", delta_color="normal" if roi > 0 else "inverse")
+            st.write(f"Targeting **{len(target_users)}** users in '{target_seg}'. Expected Revenue: **${est_revenue:,.2f}**")
 
     # --- TAB 3: DEEP DIVE ---
-    with tab3:
-        st.subheader("Single Customer 360° View")
+    with tabs[2]:
+        st.subheader("👤 Individual Customer Intelligence")
         
-        search_col, _ = st.columns([1, 2])
-        with search_col:
-            selected_user = st.selectbox("Search Customer ID", df_rfm['user_id'].unique())
-        
-        if selected_user:
-            user_data = df_rfm[df_rfm['user_id'] == selected_user].iloc[0]
+        col_search, col_profile = st.columns([1, 3])
+        with col_search:
+            uid = st.selectbox("Select Customer", df['user_id'].unique())
+            user = df[df['user_id'] == uid].iloc[0]
             
-            # KPI Cards
-            k1, k2, k3, k4 = st.columns(4)
-            k1.info(f"Segment: **{user_data['Segment']}**")
-            k2.metric("RFM Weighted Score", f"{user_data['RFM_Weighted_Score']:.2f}")
-            k3.metric("Lifetime Spend", f"${user_data['total_spend']:.2f}")
-            k4.metric("Days Inactive", f"{user_data['days_since_last_order']} days")
+            st.markdown("### Next Best Action")
+            if user['Segment'] == 'Champions':
+                st.success("🌟 **Upsell**: Offer Premium Membership")
+            elif user['Segment'] == 'At Risk':
+                st.error("🛑 **Retain**: Send 20% Off Coupon")
+            elif user['Segment'] == 'Loyal Customers':
+                st.info("💬 **Engage**: Request Product Review")
+            else:
+                st.warning("📢 **Nurture**: Send Educational Content")
+                
+        with col_profile:
+            # Profile Header
+            prof_c1, prof_c2, prof_c3 = st.columns(3)
+            prof_c1.metric("Lifetime Value", f"${user['total_spend']:,.2f}")
+            prof_c2.metric("Orders", user['total_orders'])
+            prof_c3.metric("Last Seen", f"{user['days_since_last_order']} days ago")
             
-            # Radar Chart Comparison
-            st.markdown("#### vs. Average Customer")
+            # Radar Chart
+            st.markdown("**Trait Comparison vs Average**")
+            avgs = df.mean(numeric_only=True)
             
-            avg_metrics = df_rfm[['R_Rank', 'F_Rank', 'M_Rank']].mean()
-            
-            categories = ['Recency Rank', 'Frequency Rank', 'Monetary Rank']
-            
+            categories = ['Recency Score', 'Frequency Score', 'Monetary Score']
             fig_radar = go.Figure()
-            
-            # User Data
             fig_radar.add_trace(go.Scatterpolar(
-                r=[user_data['R_Rank'], user_data['F_Rank'], user_data['M_Rank']],
-                theta=categories,
-                fill='toself',
-                name=f'Customer {selected_user}'
+                r=[user['R_Rank'], user['F_Rank'], user['M_Rank']],
+                theta=categories, fill='toself', name='This User'
             ))
-            
-            # Average Data
             fig_radar.add_trace(go.Scatterpolar(
-                r=[avg_metrics['R_Rank'], avg_metrics['F_Rank'], avg_metrics['M_Rank']],
-                theta=categories,
-                fill='toself',
-                name='Average Customer',
-                line_color='gray',
-                opacity=0.5
+                r=[avgs['R_Rank'], avgs['F_Rank'], avgs['M_Rank']],
+                theta=categories, fill='toself', name='Average', line=dict(dash='dash')
             ))
-            
-            fig_radar.update_layout(
-                polar=dict(radialaxis=dict(visible=True, range=[0, 5])),
-                showlegend=True,
-                height=400
-            )
+            fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 5])), height=300)
             st.plotly_chart(fig_radar, use_container_width=True)
-            
-            st.markdown("#### Raw Data Record")
-            st.dataframe(pd.DataFrame([user_data]))
 
-    # --- TAB 4: PREDICTION (NEW) ---
-    with tab4:
-        st.subheader("🔮 Predictive Analytics (Beta)")
-        st.markdown("""
-        We use Random Forest models to estimate future behavior based on current RFM metrics.
-        *Note: This is trained on the fly using the current dataset.*
-        """)
+        st.markdown("---")
+        st.subheader("👯 Similar Customers (Look-alikes)")
+        st.caption("Users with similar spending habits, frequency, and recency.")
         
-        # Train Model Button (to save resources)
-        if st.button("Train Prediction Models"):
-            with st.spinner("Training AI Models..."):
-                clf, reg, acc = train_prediction_models(df_rfm)
-                
-                # Make Predictions for whole dataset
-                X_pred = df_rfm[['R_Rank', 'F_Rank', 'M_Rank', 'days_since_last_order', 'total_orders', 'total_spend']]
-                df_rfm['Predicted_Churn_Prob'] = clf.predict_proba(X_pred)[:, 1]
-                df_rfm['Predicted_Next_Month_Spend'] = reg.predict(X_pred)
-                
-                st.success(f"Models Trained! Churn Model Accuracy: {acc:.1%}")
-                
-                # Visualization of Predictions
-                p1, p2 = st.columns(2)
-                
-                with p1:
-                    st.markdown("**Customers Most Likely to Churn (>80% Prob)**")
-                    high_risk = df_rfm[df_rfm['Predicted_Churn_Prob'] > 0.8].sort_values('total_spend', ascending=False).head(10)
-                    st.dataframe(high_risk[['user_id', 'Segment', 'Predicted_Churn_Prob', 'total_spend']].style.format({
-                        'Predicted_Churn_Prob': '{:.1%}',
-                        'total_spend': '${:,.2f}'
-                    }))
-                    
-                with p2:
-                    st.markdown("**Predicted Highest Spenders Next Month**")
-                    high_potential = df_rfm.sort_values('Predicted_Next_Month_Spend', ascending=False).head(10)
-                    st.dataframe(high_potential[['user_id', 'Segment', 'Predicted_Next_Month_Spend']].style.format({
-                        'Predicted_Next_Month_Spend': '${:,.2f}'
-                    }))
-                
-                # Download Predictions
-                st.markdown("---")
-                csv_pred = df_rfm.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="📥 Download Full Dataset with Predictions",
-                    data=csv_pred,
-                    file_name="rfm_predictions.csv",
-                    mime="text/csv"
-                )
+        similar_df = find_similar_customers(df, uid)
+        if not similar_df.empty:
+            st.dataframe(
+                similar_df[['user_id', 'Segment', 'total_spend', 'total_orders', 'favorite_cuisine']],
+                use_container_width=True
+            )
         else:
-            st.info("Click the button above to train the machine learning models on your data.")
+            st.warning("Not enough data to find neighbors.")
 
-else:
-    st.error("Could not load data. Please refresh the page.")
+    # --- TAB 4: PREDICTIVE ANALYTICS ---
+    with tabs[3]:
+        st.subheader("🔮 Predictive AI Engine")
+        
+        if st.button("🚀 Train & Run Models", type="primary"):
+            with st.spinner("Training Random Forest Models..."):
+                clf, reg, acc, feature_names = train_models(df)
+                
+                # Predictions
+                X_pred = df[['R_Rank', 'F_Rank', 'M_Rank', 'days_since_last_order', 'total_orders', 'total_spend']]
+                df['Prob_Churn'] = clf.predict_proba(X_pred)[:, 1]
+                df['Pred_Spend_Next_Mo'] = reg.predict(X_pred) / 12  # Rough monthly estimate
+                
+            st.success(f"Training Complete. Model Accuracy: {acc:.1%}")
+            
+            # Feature Importance
+            st.markdown("### 🧠 What drives Customer Churn?")
+            feat_imp = pd.DataFrame({'Feature': feature_names, 'Importance': clf.feature_importances_})
+            fig_imp = px.bar(feat_imp.sort_values('Importance', ascending=True), 
+                             x='Importance', y='Feature', orientation='h',
+                             title="Feature Importance (Churn Model)")
+            st.plotly_chart(fig_imp, use_container_width=True)
+            
+            # Predictions Table
+            c_pred1, c_pred2 = st.columns(2)
+            
+            with c_pred1:
+                st.markdown("#### 🚨 High Flight Risk (>80%)")
+                risk_df = df[df['Prob_Churn'] > 0.8].sort_values('total_spend', ascending=False).head(10)
+                st.dataframe(risk_df[['user_id', 'Segment', 'Prob_Churn', 'total_spend']].style.background_gradient(subset=['Prob_Churn'], cmap='Reds'))
+                
+            with c_pred2:
+                st.markdown("#### 💎 Predicted Top Spenders (Next Month)")
+                spend_df = df.sort_values('Pred_Spend_Next_Mo', ascending=False).head(10)
+                st.dataframe(spend_df[['user_id', 'Segment', 'Pred_Spend_Next_Mo']].style.format({'Pred_Spend_Next_Mo': '${:,.2f}'}))
+                
+            # Distribution of Churn Probability
+            fig_dist = px.histogram(df, x='Prob_Churn', nbins=50, title="Distribution of Churn Probability Across Base",
+                                    color_discrete_sequence=['#e74c3c'])
+            st.plotly_chart(fig_dist, use_container_width=True)
+            
+        else:
+            st.info("Click the button above to initialize the Machine Learning pipeline.")
+            
+            st.markdown("### Methodology")
+            st.markdown("""
+            1. **Churn Model**: Random Forest Classifier trained on Recency thresholds.
+            2. **Revenue Model**: Random Forest Regressor trained on historical spending patterns.
+            3. **Look-alikes**: K-Nearest Neighbors (KNN) algorithm to find vectors in 6D space.
+            """)
