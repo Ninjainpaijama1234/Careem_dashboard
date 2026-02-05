@@ -8,19 +8,19 @@ import datetime as dt
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.neighbors import NearestNeighbors
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, classification_report
+from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import StandardScaler
 
 # 1. Page Configuration
 # ---------------------
 st.set_page_config(
-    page_title="InsightX: Ultimate RFM Intelligence",
-    page_icon="🌌",
+    page_title="InsightX: Careem AI Challenge",
+    page_icon="💚",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for Premium UI
+# Custom CSS for Premium UI (Careem-inspired accents)
 st.markdown("""
 <style>
     /* Global Styles */
@@ -53,13 +53,15 @@ st.markdown("""
         box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
     .stTabs [aria-selected="true"] {
-        background-color: #2c3e50;
+        background-color: #00A550; /* Careem Green */
         color: white;
     }
-    /* Expander */
-    .streamlit-expanderHeader {
-        background-color: #f0f2f6;
-        border-radius: 5px;
+    /* Buttons */
+    div.stButton > button:first-child {
+        background-color: #00A550;
+        color: white;
+        border-radius: 8px;
+        border: none;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -71,7 +73,7 @@ st.markdown("""
 def generate_dummy_data():
     """Generates a rich, realistic dataset for demonstration."""
     np.random.seed(42)
-    n_users = 3000  # Increased sample size
+    n_users = 3000
     
     dates = pd.date_range(end=dt.datetime.today(), periods=730)
     signup_dates = np.random.choice(dates, n_users)
@@ -161,7 +163,7 @@ def train_models(df):
     """Trains predictive models and returns feature importance."""
     X = df[['R_Rank', 'F_Rank', 'M_Rank', 'days_since_last_order', 'total_orders', 'total_spend']]
     
-    # 1. Churn Prediction
+    # 1. Churn Prediction (Proxy: Recency Rank low)
     y_churn = (df['R_Rank'] <= 2).astype(int)
     X_train, X_test, y_train, y_test = train_test_split(X, y_churn, test_size=0.2, random_state=42)
     
@@ -200,22 +202,22 @@ def find_similar_customers(df, current_user_id, n_neighbors=5):
 # 3. Sidebar
 # ----------
 with st.sidebar:
-    st.image("https://placehold.co/300x120/2c3e50/FFFFFF?text=InsightX+AI", use_container_width=True)
-    st.markdown("### 🎛️ Control Panel")
+    st.markdown("### 🚀 InsightX")
+    st.caption("AI Challenge Demo by [Your Name]")
     
     uploaded_file = st.file_uploader("Data Source", type=["csv"])
     if not uploaded_file:
-        st.caption("🚀 Running on Synthetic Engine")
+        st.info("Running on Synthetic Data")
 
     st.divider()
     
     st.markdown("### ⚖️ RFM Weights")
-    r_w = st.slider("Recency Impact", 0.0, 2.0, 1.2, help="Higher weight prioritizes recent activity")
+    r_w = st.slider("Recency Impact", 0.0, 2.0, 1.2)
     f_w = st.slider("Frequency Impact", 0.0, 2.0, 0.8)
     m_w = st.slider("Monetary Impact", 0.0, 2.0, 1.0)
     
     st.divider()
-    st.info("💡 **Pro Tip:** Check the 'Predictive Analytics' tab to forecast next month's revenue.")
+    st.success("Note: Tab 5 covers Challenge #1 (AI Campaign Architect). Tab 4 covers Challenge #2 (Predictive Engine).")
 
 # 4. Main App Logic
 # -----------------
@@ -229,12 +231,12 @@ if df_raw is not None:
         "📊 Executive Overview", 
         "🧩 Advanced Segmentation", 
         "👤 360° Customer View", 
-        "🔮 AI & Future Analytics"
+        "🔮 AI & Future Analytics",
+        "📣 AI Campaign Architect" # NEW TAB
     ])
     
     # --- TAB 1: EXECUTIVE OVERVIEW ---
     with tabs[0]:
-        # Top Level KPIs
         kpi1, kpi2, kpi3, kpi4 = st.columns(4)
         total_rev = df['total_spend'].sum()
         kpi1.metric("Total Revenue", f"${total_rev:,.0f}", "+12.5%")
@@ -244,72 +246,32 @@ if df_raw is not None:
         
         st.markdown("---")
         
-        # Row 2: Visualizations
         c1, c2 = st.columns([1.5, 1])
-        
         with c1:
             st.subheader("📈 User Growth Trajectory")
-            # Aggregate signups by month
             df_growth = df.set_index('signup_date').resample('M')['user_id'].count().reset_index()
             df_growth['cumulative'] = df_growth['user_id'].cumsum()
-            
-            fig_area = px.area(df_growth, x='signup_date', y='cumulative', 
-                               labels={'cumulative': 'Total Users', 'signup_date': 'Date'},
-                               color_discrete_sequence=['#2ecc71'])
-            fig_area.update_layout(hovermode="x unified", height=350, margin=dict(l=0, r=0, t=0, b=0))
+            fig_area = px.area(df_growth, x='signup_date', y='cumulative', color_discrete_sequence=['#00A550'])
+            fig_area.update_layout(height=350, margin=dict(l=0, r=0, t=0, b=0))
             st.plotly_chart(fig_area, use_container_width=True)
             
         with c2:
             st.subheader("🍕 Market Composition")
-            # Sunburst Chart: Platform -> Cuisine
-            fig_sun = px.sunburst(df, path=['platform', 'favorite_cuisine'], values='total_spend',
-                                  color='total_spend', color_continuous_scale='RdBu')
+            fig_sun = px.sunburst(df, path=['platform', 'favorite_cuisine'], values='total_spend', color='total_spend')
             fig_sun.update_layout(height=350, margin=dict(l=0, r=0, t=0, b=0))
             st.plotly_chart(fig_sun, use_container_width=True)
-
-        st.markdown("---")
-        
-        # Row 3: Advanced Charts
-        c3, c4 = st.columns(2)
-        with c3:
-            st.subheader("🔥 RFM Correlation Heatmap")
-            st.caption("Recency vs Monetary (Size = Frequency)")
-            fig_bubble = px.scatter(df, x='days_since_last_order', y='total_spend', 
-                                    color='Segment', size='total_orders',
-                                    hover_data=['user_id'],
-                                    log_y=True, # Log scale for better visibility of spread
-                                    color_continuous_scale='Viridis',
-                                    title="Recency vs Spend (Log Scale)")
-            fig_bubble.update_layout(height=400)
-            st.plotly_chart(fig_bubble, use_container_width=True)
-            
-        with c4:
-             st.subheader("💰 Spend Distribution")
-             st.caption("How much do most users spend?")
-             fig_hist = px.histogram(df, x="total_spend", nbins=50, 
-                                     color="Segment",
-                                     title="Wallet Share Distribution",
-                                     color_discrete_sequence=px.colors.qualitative.Pastel)
-             fig_hist.update_layout(height=400)
-             st.plotly_chart(fig_hist, use_container_width=True)
 
     # --- TAB 2: SEGMENTATION ---
     with tabs[1]:
         st.subheader("🧩 Strategic Segmentation Architecture")
         
-        # 1. EXPORT SECTION (NEW)
         with st.expander("📥 **Bulk Segment Export (Download Center)**", expanded=True):
-            st.info("Select a segment below to download the specific customer list for your marketing campaigns.")
-            
-            # Create a grid layout for buttons
+            st.info("Select a segment below to download the specific customer list.")
             segments = sorted(df['Segment'].unique())
-            cols = st.columns(4) # 4 buttons per row
-            
+            cols = st.columns(4) 
             for i, seg in enumerate(segments):
                 seg_df = df[df['Segment'] == seg]
                 csv = seg_df.to_csv(index=False).encode('utf-8')
-                
-                # Place button in the correct column
                 with cols[i % 4]:
                     st.download_button(
                         label=f"📥 {seg} ({len(seg_df)})",
@@ -320,126 +282,47 @@ if df_raw is not None:
                     )
 
         st.markdown("---")
-        
         c_seg1, c_seg2 = st.columns([2, 1])
-        
         with c_seg1:
-            st.markdown("**Segment Distribution (Treemap)**")
-            seg_tree_data = df.groupby('Segment').agg({'user_id':'count', 'total_spend':'sum'}).reset_index()
-            fig_tree = px.treemap(seg_tree_data, path=['Segment'], values='total_spend',
-                                  color='user_id', color_continuous_scale='Blues',
-                                  hover_data=['user_id'],
-                                  title="Size by Revenue (Color = User Count)")
+            fig_tree = px.treemap(df.groupby('Segment').agg({'user_id':'count', 'total_spend':'sum'}).reset_index(), 
+                                  path=['Segment'], values='total_spend', color='user_id', color_continuous_scale='Mint')
             st.plotly_chart(fig_tree, use_container_width=True)
             
         with c_seg2:
-            st.markdown("**Segment Performance**")
-            st.dataframe(
-                df.groupby('Segment')[['total_spend', 'total_orders']].mean().sort_values('total_spend', ascending=False).style.format("${:,.2f}"),
-                height=350
-            )
-
-        st.markdown("---")
-        st.subheader("📊 Attribute Analysis per Segment")
-        
-        # Box Plots for deeper distribution analysis
-        box_col1, box_col2 = st.columns(2)
-        with box_col1:
-            fig_box_r = px.box(df, x="Segment", y="days_since_last_order", color="Segment", 
-                               title="Recency Distribution by Segment")
-            st.plotly_chart(fig_box_r, use_container_width=True)
-            
-        with box_col2:
-            fig_box_m = px.box(df, x="Segment", y="total_spend", color="Segment", 
-                               title="Monetary Distribution by Segment", log_y=True)
-            st.plotly_chart(fig_box_m, use_container_width=True)
-
-        st.markdown("---")
-        st.subheader("🔄 Customer Journey Flow (Parallel Categories)")
-        fig_parcat = px.parallel_categories(df, dimensions=['platform', 'age_group', 'Segment'],
-                                            color='total_spend', color_continuous_scale=px.colors.sequential.Inferno)
-        fig_parcat.update_layout(height=500)
-        st.plotly_chart(fig_parcat, use_container_width=True)
-        
-        # Interactive ROI Simulator
-        st.markdown("---")
-        with st.expander("💰 Marketing Campaign ROI Simulator", expanded=False):
-            sim_c1, sim_c2, sim_c3 = st.columns(3)
-            with sim_c1:
-                target_seg = st.selectbox("Target Segment", df['Segment'].unique())
-            with sim_c2:
-                budget = st.number_input("Campaign Budget ($)", 1000, 50000, 5000)
-            with sim_c3:
-                conv_rate = st.slider("Est. Conversion Rate (%)", 1, 20, 5) / 100
-                
-            target_users = df[df['Segment'] == target_seg]
-            avg_ticket = target_users['total_spend'].mean() / target_users['total_orders'].mean() if target_users['total_orders'].mean() > 0 else 0
-            
-            est_revenue = len(target_users) * conv_rate * avg_ticket
-            roi = (est_revenue - budget) / budget * 100
-            
-            st.metric("Estimated ROI", f"{roi:.1f}%", delta_color="normal" if roi > 0 else "inverse")
-            st.write(f"Targeting **{len(target_users)}** users in '{target_seg}'. Expected Revenue: **${est_revenue:,.2f}**")
+            st.dataframe(df.groupby('Segment')[['total_spend', 'total_orders']].mean().sort_values('total_spend', ascending=False).style.format("${:,.2f}"), height=350)
 
     # --- TAB 3: DEEP DIVE ---
     with tabs[2]:
-        st.subheader("👤 Individual Customer Intelligence")
-        
         col_search, col_profile = st.columns([1, 3])
         with col_search:
             uid = st.selectbox("Select Customer", df['user_id'].unique())
             user = df[df['user_id'] == uid].iloc[0]
-            
             st.markdown("### Next Best Action")
             if user['Segment'] == 'Champions':
-                st.success("🌟 **Upsell**: Offer Premium Membership")
+                st.success("🌟 Upsell: Premium Membership")
             elif user['Segment'] == 'At Risk':
-                st.error("🛑 **Retain**: Send 20% Off Coupon")
-            elif user['Segment'] == 'Loyal Customers':
-                st.info("💬 **Engage**: Request Product Review")
+                st.error("🛑 Retain: 20% Off Coupon")
             else:
-                st.warning("📢 **Nurture**: Send Educational Content")
+                st.warning("📢 Nurture: Educate")
                 
         with col_profile:
-            # Profile Header
             prof_c1, prof_c2, prof_c3 = st.columns(3)
             prof_c1.metric("Lifetime Value", f"${user['total_spend']:,.2f}")
             prof_c2.metric("Orders", user['total_orders'])
             prof_c3.metric("Last Seen", f"{user['days_since_last_order']} days ago")
             
-            # Radar Chart
-            st.markdown("**Trait Comparison vs Average**")
             avgs = df.mean(numeric_only=True)
-            
             categories = ['Recency Score', 'Frequency Score', 'Monetary Score']
             fig_radar = go.Figure()
-            fig_radar.add_trace(go.Scatterpolar(
-                r=[user['R_Rank'], user['F_Rank'], user['M_Rank']],
-                theta=categories, fill='toself', name='This User'
-            ))
-            fig_radar.add_trace(go.Scatterpolar(
-                r=[avgs['R_Rank'], avgs['F_Rank'], avgs['M_Rank']],
-                theta=categories, fill='toself', name='Average', line=dict(dash='dash')
-            ))
+            fig_radar.add_trace(go.Scatterpolar(r=[user['R_Rank'], user['F_Rank'], user['M_Rank']], theta=categories, fill='toself', name='User'))
+            fig_radar.add_trace(go.Scatterpolar(r=[avgs['R_Rank'], avgs['F_Rank'], avgs['M_Rank']], theta=categories, fill='toself', name='Avg'))
             fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 5])), height=300)
             st.plotly_chart(fig_radar, use_container_width=True)
 
-        st.markdown("---")
-        st.subheader("👯 Similar Customers (Look-alikes)")
-        st.caption("Users with similar spending habits, frequency, and recency.")
-        
-        similar_df = find_similar_customers(df, uid)
-        if not similar_df.empty:
-            st.dataframe(
-                similar_df[['user_id', 'Segment', 'total_spend', 'total_orders', 'favorite_cuisine']],
-                use_container_width=True
-            )
-        else:
-            st.warning("Not enough data to find neighbors.")
-
-    # --- TAB 4: PREDICTIVE ANALYTICS ---
+    # --- TAB 4: PREDICTIVE ANALYTICS (Enhanced for Challenge #2) ---
     with tabs[3]:
-        st.subheader("🔮 Predictive AI Engine")
+        st.subheader("🔮 Predictive Growth Engine")
+        st.caption("Challenge #2: Predict which segment is most likely to churn or convert.")
         
         if st.button("🚀 Train & Run Models", type="primary"):
             with st.spinner("Training Random Forest Models..."):
@@ -448,78 +331,135 @@ if df_raw is not None:
                 # Predictions
                 X_pred = df[['R_Rank', 'F_Rank', 'M_Rank', 'days_since_last_order', 'total_orders', 'total_spend']]
                 df['Prob_Churn'] = clf.predict_proba(X_pred)[:, 1]
-                df['Pred_Spend_Next_Mo'] = reg.predict(X_pred) / 12  # Rough monthly estimate
+                df['Pred_Spend_Next_Mo'] = reg.predict(X_pred) / 12
                 
             st.success(f"Training Complete. Model Accuracy: {acc:.1%}")
             
-            # Feature Importance
-            st.markdown("### 🧠 What drives Customer Churn?")
-            feat_imp = pd.DataFrame({'Feature': feature_names, 'Importance': clf.feature_importances_})
-            fig_imp = px.bar(feat_imp.sort_values('Importance', ascending=True), 
-                             x='Importance', y='Feature', orientation='h',
-                             title="Feature Importance (Churn Model)")
-            st.plotly_chart(fig_imp, use_container_width=True)
+            # --- NEW: SEGMENT LEVEL CHURN ANALYSIS ---
+            st.markdown("---")
+            st.markdown("### 📂 Segment-Level Intelligence")
+            st.caption("Aggregated risk and value profiles to identify strategic focus areas.")
             
-            # High Risk / High Value Visual
+            # Calculate aggregate metrics
+            seg_metrics = df.groupby('Segment').agg(
+                avg_churn_prob=('Prob_Churn', 'mean'),
+                avg_pred_spend=('Pred_Spend_Next_Mo', 'mean'),
+                users=('user_id', 'nunique')
+            ).reset_index()
+
+            # Identify High Priority (High Value + High Risk)
+            high_value_threshold = df['Pred_Spend_Next_Mo'].median()
+            high_risk_threshold = 0.5
+            priority_seg = seg_metrics[
+                (seg_metrics['avg_pred_spend'] >= high_value_threshold) & 
+                (seg_metrics['avg_churn_prob'] >= high_risk_threshold)
+            ]
+            
+            col_seg_metrics, col_priority = st.columns(2)
+            
+            with col_seg_metrics:
+                st.markdown("**Churn Risk by Segment**")
+                st.dataframe(
+                    seg_metrics.sort_values('avg_churn_prob', ascending=False),
+                    column_config={
+                        "avg_churn_prob": st.column_config.ProgressColumn(
+                            "Avg Churn Prob", format="%.2f", min_value=0, max_value=1
+                        ),
+                        "avg_pred_spend": st.column_config.NumberColumn(
+                            "Pred. Monthly Spend", format="$%.2f"
+                        )
+                    },
+                    use_container_width=True
+                )
+                
+            with col_priority:
+                st.markdown("**🎯 Priority Focus: High Risk / High Value**")
+                if not priority_seg.empty:
+                    st.error(f"Attention Needed: {priority_seg['Segment'].tolist()}")
+                    st.dataframe(priority_seg, use_container_width=True)
+                else:
+                    st.success("No segments currently meet the High Risk + High Value threshold.")
+
+            # --- EXISTING VISUALIZATIONS ---
+            st.markdown("---")
             st.markdown("### 🚦 Risk vs Reward Matrix")
-            st.caption("Identify High-Value customers who are at High-Risk of churning (Top Right quadrant).")
-            
             fig_risk = px.scatter(df, x='Prob_Churn', y='Pred_Spend_Next_Mo',
                                   color='Segment', size='total_spend',
                                   title="Predicted Churn Probability vs Predicted Future Spend",
                                   labels={'Prob_Churn': 'Probability of Churn (0-1)', 'Pred_Spend_Next_Mo': 'Predicted Next Month Spend'},
                                   hover_data=['user_id'])
-            # Add threshold lines
-            fig_risk.add_hline(y=df['Pred_Spend_Next_Mo'].mean(), line_dash="dash", line_color="grey", annotation_text="Avg Spend")
-            fig_risk.add_vline(x=0.5, line_dash="dash", line_color="red", annotation_text="High Risk")
+            fig_risk.add_hline(y=df['Pred_Spend_Next_Mo'].mean(), line_dash="dash", line_color="grey")
+            fig_risk.add_vline(x=0.5, line_dash="dash", line_color="red")
             st.plotly_chart(fig_risk, use_container_width=True)
-            
-            # Predictions Table
-            c_pred1, c_pred2 = st.columns(2)
-            
-            with c_pred1:
-                st.markdown("#### 🚨 High Flight Risk (>80%)")
-                risk_df = df[df['Prob_Churn'] > 0.8].sort_values('total_spend', ascending=False).head(10)
-                
-                # Use st.column_config for styling without matplotlib
-                st.dataframe(
-                    risk_df[['user_id', 'Segment', 'Prob_Churn', 'total_spend']],
-                    column_config={
-                        "Prob_Churn": st.column_config.ProgressColumn(
-                            "Churn Probability",
-                            format="%.2f",
-                            min_value=0,
-                            max_value=1,
-                        ),
-                        "total_spend": st.column_config.NumberColumn(
-                            "Total Spend",
-                            format="$%.2f"
-                        )
-                    },
-                    use_container_width=True
-                )
-                
-            with c_pred2:
-                st.markdown("#### 💎 Predicted Top Spenders (Next Month)")
-                spend_df = df.sort_values('Pred_Spend_Next_Mo', ascending=False).head(10)
-                
-                st.dataframe(
-                    spend_df[['user_id', 'Segment', 'Pred_Spend_Next_Mo']],
-                    column_config={
-                        "Pred_Spend_Next_Mo": st.column_config.NumberColumn(
-                            "Predicted Spend",
-                            format="$%.2f"
-                        )
-                    },
-                    use_container_width=True
-                )
             
         else:
             st.info("Click the button above to initialize the Machine Learning pipeline.")
+
+    # --- TAB 5: AI CAMPAIGN ARCHITECT (New for Challenge #1) ---
+    with tabs[4]:
+        st.subheader("📣 AI Campaign Architect")
+        st.caption("Challenge #1: Generate a multi-channel marketing plan with consistent brand voice.")
+        
+        col_left, col_right = st.columns([2, 1])
+        
+        with col_left:
+            product = st.text_area(
+                "Product / Offer Description",
+                "Careem Food: 30% off for Champions segment this weekend on orders above 60 AED in Dubai.",
+                height=100
+            )
             
-            st.markdown("### Methodology")
-            st.markdown("""
-            1. **Churn Model**: Random Forest Classifier trained on Recency thresholds.
-            2. **Revenue Model**: Random Forest Regressor trained on historical spending patterns.
-            3. **Look-alikes**: K-Nearest Neighbors (KNN) algorithm to find vectors in 6D space.
-            """)
+            c_input1, c_input2 = st.columns(2)
+            with c_input1:
+                target_segment_ai = st.selectbox(
+                    "Target Customer Segment",
+                    sorted(df['Segment'].unique())
+                )
+                brand_voice = st.selectbox(
+                    "Brand Voice",
+                    ["Careem – friendly & witty", "Professional & trustworthy", "Youthful & bold"]
+                )
+            with c_input2:
+                primary_goal = st.selectbox(
+                    "Primary Campaign Goal",
+                    ["Drive first order", "Increase frequency", "Win back lapsed users", "Upsell high value users"]
+                )
+                
+        with col_right:
+            st.info("💡 **How it works:** This tool constructs a sophisticated prompt chain ensuring your brand voice remains consistent across Email, Push, and Social channels.")
+        
+        if st.button("Generate Campaign Blueprint", type="primary"):
+            st.divider()
+            st.markdown("### 🧠 Copy-Ready Prompt for ChatGPT / Claude")
+            st.markdown("Copy the block below and paste it into your LLM of choice:")
+            
+            prompt_text = f"""
+You are a senior lifecycle marketing manager at a Super App like Careem in MENA.
+
+Your task: design a multi-channel campaign (email, push, in-app banner, and social ad) for the following offer:
+
+PRODUCT/OFFER:
+\"\"\"{product}\"\"\"
+
+CONTEXT:
+- Target RFM segment: {target_segment_ai}
+- Primary goal: {primary_goal}
+- Audience: mobile-first users in GCC, price sensitive but convenience-driven
+- Brand voice: {brand_voice} (keep it consistent across all assets)
+
+OUTPUT:
+1. 1-paragraph campaign strategy (who, why now, what message).
+2. Channel plan table: channel, objective, core message, CTA, timing.
+3. Copy:
+   - Email: subject line + preview + body outline (not full long email).
+   - Push: 3 options, max 40 characters each.
+   - In-app banner: headline + subcopy.
+   - Social ad (Instagram story): hook line + 2 supporting points.
+4. Add one simple A/B test idea for subject line or hook.
+            """
+            st.code(prompt_text, language="markdown")
+            
+            st.markdown("### ✍️ Example Hook Suggestions (Generated based on strategy)")
+            st.write("- **Emotional:** \"Your favourite biryani is just one tap away—this weekend, we’ve got your cravings covered.\"")
+            st.write("- **Data-driven:** \"Champions like you save an average of 42 AED this weekend with our 30% off Careem Food offer.\"")
+            st.write("- **Humorous:** \"Don’t cook. It’s 40 degrees outside and your oven doesn’t need encouragement.\"")
